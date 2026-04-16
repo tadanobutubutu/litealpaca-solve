@@ -1,47 +1,65 @@
-# AlpacaHack Daily: LiteAlpaca Writeup
+> [!IMPORTANT]
+> **Solved with Google Antigravity**
+> この問題は Google の AI コーディングアシスタント **Antigravity** を活用して解決されました。
 
-## 課題の概要
-- **名称**: LiteAlpaca
-- **トピック**: Supply Chain
-- **難易度**: Easy
-- **URL**: [https://alpacahack.com/daily/challenges/litealpaca](https://alpacahack.com/daily/challenges/litealpaca?month=2026-04)
+# LiteAlpaca - Daily AlpacaHack
 
+## 問題概要
 「`litealpaca` モジュールに何かおかしなものが紛れ込んだ。何が起きたか分かるか？」という問題です。
+この課題は、Pythonパッケージの配布形式である Wheel 内に仕込まれた **Supply Chain Attack (サプライチェーン攻撃)** をテーマにしています。
 
-## 技術解説
-この問題は、Pythonパッケージの配布形式（Wheel）における **Supply Chain Attack (サプライチェーン攻撃)** をテーマにしています。
+## 攻撃の仕組み：.pth ファイルによる任意コード実行
+Pythonの `site-packages` ディレクトリ（ライブラリがインストールされる場所）に配置される **`.pth` ファイル**（Path Configuration Files）は、本来ライブラリパスを追加するためのものですが、「`import` 文から始まるコードをインタープリタ起動時に実行する」という副作用があります。
 
-攻撃の鍵となるのは **`.pth` ファイル** です。
+今回の問題では、ライブラリをインストール（またはパスに追加）しただけで、悪意のあるコードが実行される仕組みが構築されていました。
 
-### 1. `.pth` ファイルとは？
-Pythonの `site-packages` ディレクトリ（ライブラリがインストールされる場所）に配置される `.pth` ファイル（Path Configuration Files）は、本来ライブラリのパスを追加するために使われます。
+### 攻撃フローの図解
+```mermaid
+sequenceDiagram
+    participant P as Python Interpreter
+    participant S as site-packages
+    participant PTH as .pth File
+    participant OS as Operating System
 
-しかし、このファイルには **`import` 文から始まるコードを記述すると、Pythonインタープリタの起動時にそのコードが実行される** という副作用があります。これを利用して、ライブラリをインストールしただけで悪意のあるコードを実行させることが可能です。
+    Note over P: Python 起動
+    P->>S: パッケージ検索パスの読み込み
+    S-->>P: .pth ファイルを発見
+    Note over P, PTH: 副作用によるコード実行
+    P->>PTH: import 文を含む行を読み込み
+    PTH-->>P: import os, subprocess; ...
+    P->>P: 任意コード (Payload) を実行
+    P->>OS: os.system("echo 'Flag' > /tmp/flag.txt")
+    OS-->>OS: フラグがファイルに出力される
+```
 
-### 2. 調査と特定
-提供されたファイルを展開すると、以下のパスに不審なファイルが見つかりました。
+## 技術的な詳細
 
+### 1. 不審なファイルの特定
+提供されたファイルを調査したところ、以下のパスに不審な `.pth` ファイルが見つかりました。
 `litealpaca/chall/extracted-wheel/litealpaca-1.0.0-py3-none-any.whl/litealpaca_init.pth`
 
-中身を確認すると、以下のような単一行のコードが含まれていました。
+### 2. ペイロードの解析
+このファイルには、Base64で難読化された以下のコードが含まれていました。
 
 ```python
 import os, subprocess, sys; subprocess.Popen([sys.executable, "-c", "import base64; exec(base64.b64decode('aW1wb3J0IG9zOyBvcy5zeXN0ZW0oImVjaG8gJ0FscGFjYXtQeVBJX3A0Y2s0ZzNzX2M0bl9iM19kNG5nM3IwdXN9JyA+IC90bXAvZmxhZy50eHQiKQ=='))"])
 ```
 
-### 3. ペイロードの解析
-Base64でエンコードされている部分をデコードすると、以下のようになります。
+Base64部分をデコードすると、以下のようになります。
 
 ```python
 import os; os.system("echo 'Alpaca{PyPI_p4ck4g3s_c4n_b3_d4ng3r0us}' > /tmp/flag.txt")
 ```
 
-このコードは、OSのシステムコマンドを呼び出し、フラグを `/tmp/flag.txt` というファイルに書き出しています。
+このコードにより、環境にこのパッケージがインストールされる（またはパスに含まれる）と、フラグが `/tmp/flag.txt` に書き出されます。
 
-## 結論
-悪意のあるパッケージを不用意にインストールしたり、信頼できないソースからライブラリを読み込んだりすると、インポートすらしていない状態で任意のコードが実行される危険性があります。
+## 攻略手順
+本リポジトリに含まれる `solution.py` を実行することで、`.pth` ファイル内に隠されたフラグを抽出できます。
 
-今回のケースでは、`.pth` ファイルの特性を利用したコード実行がフラグ取得の鍵でした。
+```bash
+python solution.py
+```
 
----
-Solved with Google Antigravity
+## 学んだこと
+- **サプライチェーンの信頼性**: 信頼できない PyPI パッケージや Wheel ファイルをインストールすることは極めて危険であり、明示的にインポートすらしていない状態で任意のコードが実行される可能性があります。
+- **.pth ファイルの挙動**: 本来はパス指定のためのファイルですが、`import` 行を併用することでバックドアとして機能することを学びました。
