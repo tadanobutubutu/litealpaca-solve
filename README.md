@@ -26,9 +26,9 @@ sequenceDiagram
     S-->>P: .pth ファイルを発見
     Note over P, PTH: 副作用によるコード実行
     P->>PTH: import 文を含む行を読み込み
-    PTH-->>P: "import os, subprocess; ..."
-    P->>P: "任意コード (Payload) を実行"
-    P->>OS: "os.system('echo Flag > /tmp/flag.txt')"
+    PTH-->>P: import os, subprocess, ...
+    P->>P: 任意コード (Payload) を実行
+    P->>OS: os.system(...)
     OS-->>OS: フラグがファイルに出力される
 ```
 
